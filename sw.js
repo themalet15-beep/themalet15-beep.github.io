@@ -5,7 +5,7 @@ const TYPES = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif', svg: 'image/svg+xml',
   ico: 'image/x-icon', woff: 'font/woff', woff2: 'font/woff2', ttf: 'font/ttf', map: 'application/json',
 };
-const PASS = new Set(['/launch.html', '/sw.js']);
+const PASS = new Set(['/index.html', '/sw.js']);
 const MAX_BATCH = 64 * 1024 * 1024;
 
 const idb = () => new Promise((ok, err) => {
@@ -104,7 +104,7 @@ async function handle(req, url) {
   const root = await getRoot();
   let ok = false;
   try { ok = !!root && (await root.queryPermission({ mode: 'read' })) === 'granted'; } catch {}
-  if (!ok) return req.mode === 'navigate' ? Response.redirect('/launch.html', 302) : fail(503, 'Folder access not granted: open /launch.html');
+  if (!ok) return req.mode === 'navigate' ? Response.redirect('/index.html', 302) : fail(503, 'Folder access not granted: open /index.html');
   if (req.method === 'POST' && url.pathname === '/data/batch') return batch(req, root);
   if (req.method === 'GET' || req.method === 'HEAD') return serve(req, url, root);
   return fail(404, 'not found');
