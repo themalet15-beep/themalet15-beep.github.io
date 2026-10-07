@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Launcher</title>
+<style>
+	:root { --bg: #fff; --fg: #1a1a1a; --mut: #666; --btn: #1a1a1a; --btnfg: #fff; }
+	@media (prefers-color-scheme: dark) { :root { --bg: #111; --fg: #eee; --mut: #999; --btn: #eee; --btnfg: #111; } }
+	body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+	main { max-width: 440px; padding: 24px; }
+	h1 { font-size: 20px; margin: 0 0 8px; }
+	p { color: var(--mut); margin: 0 0 16px; }
+	button { font: inherit; padding: 10px 18px; border: 0; border-radius: 8px; background: var(--btn); color: var(--btnfg); cursor: pointer; margin: 0 8px 8px 0; }
+	button.alt { background: none; color: var(--fg); border: 1px solid var(--mut); }
+	#msg { color: #d33; min-height: 1.5em; }
+</style>
+</head>
+<body>
+<main>
+	<h1>Local game launcher</h1>
+	<p id="info">Choose the <b>playgta5.com</b> folder (the one that contains <code>index.html</code>, <code>b/</code> and <code>data/</code>). Files are read from your device and never uploaded.</p>
+	<button id="go" hidden>Allow access &amp; start</button>
+	<button id="pick">Choose folder</button>
+	<div id="msg"></div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id), msg = (t) => { $('msg').textContent = t; };
+const idb = () => new Promise((ok, err) => {
+	const r = indexedDB.open('gta-local', 1);
+	r.onupgradeneeded = () => r.result.createObjectStore('kv');
+	r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error);
+});
+const kv = async (mode, fn) => { const db = await idb(); return new Promise((ok, err) => { const r = fn(db.transaction('kv', mode).objectStore('kv')); r.onsuccess = () => ok(r.result); r.onerror = () => err(r.error); }); };
+
+async function start(handle) {
+	if ((await handle.requestPermission({ mode: 'read' })) !== 'granted') return msg('Access was not granted.');
+	const reg = await navigator.serviceWorker.ready;
+	reg.active.postMessage('reset');
+	location.href = '/';
+}
+
+(async () => {
+	if (!('serviceWorker' in navigator) || !window.showDirectoryPicker) return msg('This needs Chrome (or Edge) over https.');
+	try { await navigator.serviceWorker.register('/sw.js', { scope: '/' }); } catch (e) { return msg('Service worker failed: ' + e.message); }
+	const saved = await kv('readonly', (s) => s.get('root'));
+	if (saved) {
+		$('go').hidden = false;
+		$('go').textContent = 'Start (' + saved.name + ')';
+		$('pick').className = 'alt';
+		$('pick').textContent = 'Choose a different folder';
+		$('go').onclick = () => start(saved).catch((e) => msg(e.message));
+	}
+	$('pick').onclick = async () => {
+		try {
+			const handle = await showDirectoryPicker({ id: 'gta-mirror', mode: 'read' });
+			try { await handle.getFileHandle('index.html'); } catch { return msg('That folder has no index.html. Pick the playgta5.com folder itself.'); }
+			await kv('readwrite', (s) => s.put(handle, 'root'));
+			await start(handle);
+		} catch (e) { if (e.name !== 'AbortError') msg(e.message); }
+	};
+})();
+</script>
+</body>
+</html>
